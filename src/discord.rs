@@ -16,7 +16,7 @@ impl DiscordClient {
     pub fn from_config(config: Arc<AppConfig>) -> Result<Self> {
         let token = config
             .effective_token()
-            .ok_or_else(|| "missing Discord bot token; configure ~/.clawhip/config.toml or CLAWHIP_DISCORD_BOT_TOKEN".to_string())?;
+            .ok_or_else(|| "missing Discord bot token; configure ~/.clawhip/config.toml or DISCORD_TOKEN (CLAWHIP_DISCORD_BOT_TOKEN is also supported)".to_string())?;
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,

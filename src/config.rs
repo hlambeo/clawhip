@@ -213,6 +213,28 @@ fn default_true() -> bool {
     true
 }
 
+const DISCORD_TOKEN_ENV_VARS: [&str; 2] = ["DISCORD_TOKEN", "CLAWHIP_DISCORD_BOT_TOKEN"];
+
+fn normalize_secret(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn discord_token_from_env_with<F>(mut get_env: F) -> Option<String>
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    DISCORD_TOKEN_ENV_VARS
+        .iter()
+        .find_map(|name| normalize_secret(get_env(name)))
+}
+
 impl AppConfig {
     pub fn load_or_default(path: &Path) -> Result<Self> {
         if !path.exists() {
@@ -239,10 +261,32 @@ impl AppConfig {
     }
 
     pub fn effective_token(&self) -> Option<String> {
-        env::var("CLAWHIP_DISCORD_BOT_TOKEN")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .or_else(|| self.discord.bot_token.clone())
+        self.effective_token_with(|name| env::var(name).ok())
+    }
+
+    fn effective_token_with<F>(&self, get_env: F) -> Option<String>
+    where
+        F: FnMut(&str) -> Option<String>,
+    {
+        discord_token_from_env_with(get_env)
+            .or_else(|| normalize_secret(self.discord.bot_token.clone()))
+    }
+
+    pub fn discord_token_source(&self) -> &'static str {
+        self.discord_token_source_with(|name| env::var(name).ok())
+    }
+
+    fn discord_token_source_with<F>(&self, get_env: F) -> &'static str
+    where
+        F: FnMut(&str) -> Option<String>,
+    {
+        if discord_token_from_env_with(get_env).is_some() {
+            "env"
+        } else if normalize_secret(self.discord.bot_token.clone()).is_some() {
+            "config"
+        } else {
+            "missing"
+        }
     }
 
     pub fn daemon_base_url(&self) -> String {
@@ -299,19 +343,8 @@ impl AppConfig {
     }
 
     fn print_summary(&self) {
-        let token_status = if self
-            .discord
-            .bot_token
-            .as_deref()
-            .unwrap_or_default()
-            .is_empty()
-        {
-            "missing"
-        } else {
-            "configured"
-        };
         println!("Current config summary:");
-        println!("  Discord token: {token_status}");
+        println!("  Discord token source: {}", self.discord_token_source());
         println!("  Daemon base URL: {}", self.daemon.base_url);
         println!(
             "  Bind host/port: {}:{}",
@@ -368,5 +401,58 @@ fn empty_to_none(value: String) -> Option<String> {
         None
     } else {
         Some(trimmed.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn discord_token_source_prefers_env_over_config() {
+        let mut config = AppConfig::default();
+        config.discord.bot_token = Some("config-token".into());
+
+        assert_eq!(config.discord_token_source_with(|_| None), "config");
+        assert_eq!(
+            config.effective_token_with(|_| None).as_deref(),
+            Some("config-token")
+        );
+
+        let token = config.effective_token_with(|name| {
+            (name == "DISCORD_TOKEN").then(|| "env-token".to_string())
+        });
+        assert_eq!(token.as_deref(), Some("env-token"));
+        assert_eq!(
+            config.discord_token_source_with(|name| {
+                (name == "DISCORD_TOKEN").then(|| "env-token".to_string())
+            }),
+            "env"
+        );
+    }
+
+    #[test]
+    fn discord_token_source_reports_missing_when_unset() {
+        let config = AppConfig::default();
+
+        assert_eq!(config.discord_token_source_with(|_| None), "missing");
+        assert_eq!(config.effective_token_with(|_| None), None);
+    }
+
+    #[test]
+    fn legacy_env_token_is_still_supported() {
+        let config = AppConfig::default();
+
+        let token = config.effective_token_with(|name| {
+            (name == "CLAWHIP_DISCORD_BOT_TOKEN").then(|| "legacy-token".to_string())
+        });
+
+        assert_eq!(token.as_deref(), Some("legacy-token"));
+        assert_eq!(
+            config.discord_token_source_with(|name| {
+                (name == "CLAWHIP_DISCORD_BOT_TOKEN").then(|| "legacy-token".to_string())
+            }),
+            "env"
+        );
     }
 }

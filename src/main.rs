@@ -19,6 +19,8 @@ use crate::client::DaemonClient;
 use crate::config::AppConfig;
 use crate::events::IncomingEvent;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 pub type Result<T> = std::result::Result<T, DynError>;
 

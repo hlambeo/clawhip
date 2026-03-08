@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use tokio::sync::RwLock;
 
 use crate::Result;
+use crate::VERSION;
 use crate::config::AppConfig;
 use crate::discord::DiscordClient;
 use crate::events::{IncomingEvent, normalize_event};
@@ -27,6 +28,9 @@ struct AppState {
 }
 
 pub async fn run(config: Arc<AppConfig>, port_override: Option<u16>) -> Result<()> {
+    let token_source = config.discord_token_source();
+    println!("clawhip v{VERSION} starting (token_source: {token_source})");
+
     let discord = Arc::new(DiscordClient::from_config(config.clone())?);
     let router = Arc::new(Router::new(config.clone()));
     let tmux_registry: SharedTmuxRegistry = Arc::new(RwLock::new(HashMap::new()));
@@ -57,7 +61,7 @@ pub async fn run(config: Arc<AppConfig>, port_override: Option<u16>) -> Result<(
     let addr: SocketAddr = format!("{}:{}", config.daemon.bind_host, port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     println!(
-        "clawhip daemon listening on http://{}",
+        "clawhip daemon v{VERSION} listening on http://{} (token_source: {token_source})",
         listener.local_addr()?
     );
     axum::serve(listener, app).await?;
@@ -66,14 +70,24 @@ pub async fn run(config: Arc<AppConfig>, port_override: Option<u16>) -> Result<(
 
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
     let registered = state.tmux_registry.read().await.len();
-    Json(json!({
+    Json(health_payload(
+        state.config.as_ref(),
+        state.port,
+        registered,
+    ))
+}
+
+fn health_payload(config: &AppConfig, port: u16, registered_tmux_sessions: usize) -> Value {
+    json!({
         "ok": true,
-        "port": state.port,
-        "daemon_base_url": state.config.daemon.base_url,
-        "configured_git_monitors": state.config.monitors.git.repos.len(),
-        "configured_tmux_monitors": state.config.monitors.tmux.sessions.len(),
-        "registered_tmux_sessions": registered,
-    }))
+        "version": VERSION,
+        "token_source": config.discord_token_source(),
+        "port": port,
+        "daemon_base_url": config.daemon.base_url,
+        "configured_git_monitors": config.monitors.git.repos.len(),
+        "configured_tmux_monitors": config.monitors.tmux.sessions.len(),
+        "registered_tmux_sessions": registered_tmux_sessions,
+    })
 }
 
 async fn status(State(state): State<AppState>) -> impl IntoResponse {
@@ -209,5 +223,29 @@ async fn post_github(
             Json(json!({"ok": false, "error": error.to_string()})),
         )
             .into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+
+    #[test]
+    fn health_payload_includes_version_and_token_source() {
+        let mut config = AppConfig::default();
+        config.discord.bot_token = Some("config-token".into());
+        config.monitors.git.repos.push(Default::default());
+        config.monitors.tmux.sessions.push(Default::default());
+
+        let payload = health_payload(&config, 25294, 3);
+
+        assert_eq!(payload["ok"], Value::Bool(true));
+        assert_eq!(payload["version"], Value::String(VERSION.to_string()));
+        assert_eq!(payload["token_source"], Value::String("config".to_string()));
+        assert_eq!(payload["port"], Value::from(25294));
+        assert_eq!(payload["configured_git_monitors"], Value::from(1));
+        assert_eq!(payload["configured_tmux_monitors"], Value::from(1));
+        assert_eq!(payload["registered_tmux_sessions"], Value::from(3));
     }
 }
