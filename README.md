@@ -34,6 +34,12 @@ clawhip tmux new -s issue-123 \
   --mention "<@your-user-id>" \
   --keywords "error,PR created,complete" \
   -- 'source ~/.zshrc && omx --madmax'
+
+# or attach monitoring to an existing tmux session
+clawhip tmux watch -s issue-123 \
+  --channel YOUR_CHANNEL_ID \
+  --mention "<@your-user-id>" \
+  --keywords "error,PR created,complete"
 ```
 
 See [`skills/omx/`](skills/omx/) for ready-to-use scripts.
@@ -244,7 +250,7 @@ Verification:
 - let real tmux session idle past threshold
 - confirm final Discord body in target channel
 
-### 9. tmux wrapper preset
+### 9. tmux wrapper / watch preset
 
 Input:
 ```bash
@@ -256,17 +262,25 @@ clawhip tmux new -s <session> \
   --format alert \
   --shell /bin/zsh \
   -- command args
+
+clawhip tmux watch -s <existing-session> \
+  --channel <id> \
+  --mention '<@id>' \
+  --keywords 'error,PR created,FAILED,complete' \
+  --stale-minutes 10 \
+  --format alert
 ```
 
 Behavior:
-- create tmux session using the user's default shell (or `--shell` override)
-- send the requested command into the session
-- register session with daemon
+- `tmux new` creates a tmux session using the user's default shell (or `--shell` override)
+- `tmux new` sends the requested command into the session
+- `tmux watch` attaches monitoring to an already-running tmux session
+- both commands register the session with the daemon
 - daemon monitors keyword/stale events
 - final delivery goes through daemon routing
 
 Verification:
-- run wrapper
+- run wrapper or watch an existing session
 - emit keyword in pane
 - confirm Discord message body and mention
 
@@ -430,6 +444,7 @@ Required live sign-off presets:
 - tmux keyword
 - tmux stale
 - tmux wrapper
+- tmux watch
 - install/update/uninstall
 
 ## Minimal operational commands

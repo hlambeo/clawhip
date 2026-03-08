@@ -126,6 +126,7 @@ async fn real_main() -> Result<()> {
                     .await
             }
             TmuxCommands::New(args) => tmux_wrapper::run(args, config.as_ref()).await,
+            TmuxCommands::Watch(args) => tmux_wrapper::watch(args, config.as_ref()).await,
         },
         Commands::Config { command } => match command.unwrap_or(ConfigCommand::Interactive) {
             ConfigCommand::Interactive => {

@@ -52,6 +52,7 @@ clawhip git commit ...
 clawhip tmux keyword ...
 clawhip tmux stale ...
 clawhip tmux new -s <session> --channel <id> --keywords error,complete --shell /bin/zsh -- command
+clawhip tmux watch -s <existing-session> --channel <id> --mention '<@id>' --keywords error,complete
 ```
 
 ## Lifecycle surface
@@ -114,7 +115,7 @@ Preset verification targets:
 - GitHub issue opened / commented / closed
 - GitHub PR opened / status changed / merged
 - git commit monitor
-- tmux keyword / stale / wrapper
+- tmux keyword / stale / wrapper / watch
 - install / update / uninstall
 
 ## Attachment summary

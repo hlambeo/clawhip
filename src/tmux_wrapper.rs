@@ -6,7 +6,7 @@ use tokio::process::Command;
 use tokio::time::sleep;
 
 use crate::Result;
-use crate::cli::TmuxNewArgs;
+use crate::cli::{TmuxNewArgs, TmuxWatchArgs, TmuxWrapperFormat};
 use crate::client::DaemonClient;
 use crate::config::AppConfig;
 use crate::events::IncomingEvent;
@@ -14,6 +14,67 @@ use crate::monitor::RegisteredTmuxSession;
 
 pub async fn run(args: TmuxNewArgs, config: &AppConfig) -> Result<()> {
     launch_session(&args).await?;
+    let monitor_args = TmuxMonitorArgs::from(&args);
+    let monitor = register_and_start_monitor(monitor_args, config).await?;
+
+    if args.attach {
+        attach_session(&args.session).await?;
+    }
+
+    monitor.await??;
+    Ok(())
+}
+
+pub async fn watch(args: TmuxWatchArgs, config: &AppConfig) -> Result<()> {
+    if !session_exists(&args.session).await? {
+        return Err(format!("tmux session '{}' does not exist", args.session).into());
+    }
+
+    let monitor = register_and_start_monitor(TmuxMonitorArgs::from(&args), config).await?;
+    monitor.await??;
+    Ok(())
+}
+
+#[derive(Clone)]
+struct TmuxMonitorArgs {
+    session: String,
+    channel: Option<String>,
+    mention: Option<String>,
+    keywords: Vec<String>,
+    stale_minutes: u64,
+    format: Option<TmuxWrapperFormat>,
+}
+
+impl From<&TmuxNewArgs> for TmuxMonitorArgs {
+    fn from(value: &TmuxNewArgs) -> Self {
+        Self {
+            session: value.session.clone(),
+            channel: value.channel.clone(),
+            mention: value.mention.clone(),
+            keywords: value.keywords.clone(),
+            stale_minutes: value.stale_minutes,
+            format: value.format,
+        }
+    }
+}
+
+impl From<&TmuxWatchArgs> for TmuxMonitorArgs {
+    fn from(value: &TmuxWatchArgs) -> Self {
+        Self {
+            session: value.session.clone(),
+            channel: value.channel.clone(),
+            mention: value.mention.clone(),
+            keywords: value.keywords.clone(),
+            stale_minutes: value.stale_minutes,
+            format: value.format,
+        }
+    }
+}
+
+async fn register_and_start_monitor(
+    args: TmuxMonitorArgs,
+    config: &AppConfig,
+) -> Result<tokio::task::JoinHandle<Result<()>>> {
     let client = DaemonClient::from_config(config);
     let registration = RegisteredTmuxSession {
         session: args.session.clone(),
@@ -26,16 +87,10 @@ pub async fn run(args: TmuxNewArgs, config: &AppConfig) -> Result<()> {
     };
     client.register_tmux(&registration).await?;
 
-    let monitor_args = args.clone();
     let monitor_client = client.clone();
-    let monitor = tokio::spawn(async move { monitor_session(monitor_args, monitor_client).await });
-
-    if args.attach {
-        attach_session(&args.session).await?;
-    }
-
-    monitor.await??;
-    Ok(())
+    Ok(tokio::spawn(async move {
+        monitor_session(args, monitor_client).await
+    }))
 }
 
 #[derive(Clone)]
@@ -62,7 +117,7 @@ struct KeywordHit {
     line: String,
 }
 
-async fn monitor_session(args: TmuxNewArgs, client: DaemonClient) -> Result<()> {
+async fn monitor_session(args: TmuxMonitorArgs, client: DaemonClient) -> Result<()> {
     let mut state: HashMap<String, PaneState> = HashMap::new();
     let poll_interval = Duration::from_secs(1);
     let stale_after = Duration::from_secs(args.stale_minutes.max(1) * 60);
@@ -454,5 +509,29 @@ PR created #7",
             build_command_to_send(&args).as_deref(),
             Some("source ~/.zshrc && omx --madmax")
         );
+    }
+
+    #[test]
+    fn watch_args_convert_to_monitor_args() {
+        let args = TmuxWatchArgs {
+            session: "existing".into(),
+            channel: Some("alerts".into()),
+            mention: Some("<@123>".into()),
+            keywords: vec!["error".into(), "complete".into()],
+            stale_minutes: 15,
+            format: Some(TmuxWrapperFormat::Inline),
+        };
+
+        let monitor_args = TmuxMonitorArgs::from(&args);
+
+        assert_eq!(monitor_args.session, "existing");
+        assert_eq!(monitor_args.channel.as_deref(), Some("alerts"));
+        assert_eq!(monitor_args.mention.as_deref(), Some("<@123>"));
+        assert_eq!(monitor_args.keywords, vec!["error", "complete"]);
+        assert_eq!(monitor_args.stale_minutes, 15);
+        assert!(matches!(
+            monitor_args.format,
+            Some(TmuxWrapperFormat::Inline)
+        ));
     }
 }

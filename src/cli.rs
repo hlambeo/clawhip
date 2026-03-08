@@ -164,6 +164,7 @@ pub enum TmuxCommands {
         channel: Option<String>,
     },
     New(TmuxNewArgs),
+    Watch(TmuxWatchArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -209,10 +210,67 @@ pub struct TmuxNewArgs {
     pub command: Vec<String>,
 }
 
+#[derive(Debug, Clone, Args)]
+pub struct TmuxWatchArgs {
+    #[arg(short = 's', long = "session")]
+    pub session: String,
+    #[arg(long)]
+    pub channel: Option<String>,
+    #[arg(long)]
+    pub mention: Option<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub keywords: Vec<String>,
+    #[arg(long, default_value_t = 10)]
+    pub stale_minutes: u64,
+    #[arg(long)]
+    pub format: Option<TmuxWrapperFormat>,
+}
+
 #[derive(Debug, Clone, Default, Subcommand)]
 pub enum ConfigCommand {
     #[default]
     Interactive,
     Show,
     Path,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_tmux_watch_subcommand() {
+        let cli = Cli::parse_from([
+            "clawhip",
+            "tmux",
+            "watch",
+            "-s",
+            "issue-13",
+            "--channel",
+            "alerts",
+            "--mention",
+            "<@123>",
+            "--keywords",
+            "error,complete",
+            "--stale-minutes",
+            "15",
+            "--format",
+            "alert",
+        ]);
+
+        let Commands::Tmux { command } = cli.command.expect("tmux command") else {
+            panic!("expected tmux command");
+        };
+
+        let TmuxCommands::Watch(args) = command else {
+            panic!("expected tmux watch command");
+        };
+
+        assert_eq!(args.session, "issue-13");
+        assert_eq!(args.channel.as_deref(), Some("alerts"));
+        assert_eq!(args.mention.as_deref(), Some("<@123>"));
+        assert_eq!(args.keywords, vec!["error", "complete"]);
+        assert_eq!(args.stale_minutes, 15);
+        assert!(matches!(args.format, Some(TmuxWrapperFormat::Alert)));
+    }
 }
