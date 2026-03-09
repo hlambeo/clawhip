@@ -417,10 +417,36 @@ impl IncomingEvent {
         line: String,
         channel: Option<String>,
     ) -> Self {
-        Self::tmux_keywords(session, vec![(keyword, line)], channel)
+        Self {
+            kind: "tmux.keyword".to_string(),
+            channel,
+            mention: None,
+            format: None,
+            template: None,
+            payload: json!({
+                "session": session,
+                "keyword": keyword,
+                "line": line,
+            }),
+        }
     }
 
     pub fn tmux_keywords(
+        session: String,
+        hits: Vec<(String, String)>,
+        channel: Option<String>,
+    ) -> Self {
+        if hits.len() <= 1 {
+            let Some((keyword, line)) = hits.into_iter().next() else {
+                return Self::tmux_keyword(session, String::new(), String::new(), channel);
+            };
+            return Self::tmux_keyword(session, keyword, line, channel);
+        }
+
+        Self::tmux_keyword_aggregated(session, hits, channel)
+    }
+
+    pub fn tmux_keyword_aggregated(
         session: String,
         hits: Vec<(String, String)>,
         channel: Option<String>,
