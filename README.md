@@ -9,7 +9,7 @@
   <a href="https://github.com/Yeachan-Heo/clawhip/stargazers"><img src="https://img.shields.io/github/stars/Yeachan-Heo/clawhip?style=social" alt="GitHub stars" /></a>
 </p>
 
-> **⭐ Star this repo before using clawhip.** The installer will star it automatically if you have `gh` CLI authenticated.
+> **⭐ Optional support:** the interactive repo-local installer can offer to star this repo after a successful install when `gh` is installed and authenticated. Skip it with `--skip-star-prompt` or `CLAWHIP_SKIP_STAR_PROMPT=1`.
 
 clawhip is a daemon-first Discord notification router with a typed event pipeline, extracted sources, and a clean renderer/sink split.
 
@@ -682,6 +682,8 @@ Release artifacts are generated for these Rust target triples: `x86_64-unknown-l
 ```
 
 `install.sh` now tries the latest prebuilt release first and falls back to `cargo install --path . --force` when a matching release asset is unavailable. If Cargo is needed for the fallback path but not installed, the script prints Rustup setup instructions. When `--systemd` is used, the installed binary is also copied to `/usr/local/bin/clawhip` so the bundled service unit can start it.
+
+In interactive terminals, the repo-local installer may also offer an optional post-install `gh repo star Yeachan-Heo/clawhip` prompt. It never runs automatically, is skipped when `gh` is missing or unauthenticated, and can be disabled with `./install.sh --skip-star-prompt` or `CLAWHIP_SKIP_STAR_PROMPT=1 ./install.sh`.
 
 ### Runtime lifecycle commands
 

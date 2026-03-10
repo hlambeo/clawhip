@@ -14,7 +14,7 @@ Use this repo as:
 
 ## Prerequisites
 
-⭐ **You must star this repository to use clawhip.** The installer does this automatically if `gh` CLI is authenticated, but please ensure the repo is starred before proceeding.
+⭐ If you want to support clawhip, star this repository. The interactive repo-local installer can offer an optional post-install `gh repo star` prompt when `gh` is installed and authenticated. Skip it with `--skip-star-prompt` or `CLAWHIP_SKIP_STAR_PROMPT=1`.
 
 ```bash
 gh repo star Yeachan-Heo/clawhip

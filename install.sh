@@ -7,24 +7,99 @@ INSTALLER_URL="${CLAWHIP_INSTALLER_URL:-https://github.com/${GITHUB_REPO}/releas
 CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 export CARGO_HOME
 SYSTEMD=0
-for arg in "$@"; do
-  case "$arg" in
-    --systemd) SYSTEMD=1 ;;
-    *) echo "unknown arg: $arg" >&2; exit 1 ;;
-  esac
-done
+SKIP_STAR_PROMPT=0
+
+usage() {
+  cat <<'EOF'
+Usage: ./install.sh [--systemd] [--skip-star-prompt]
+
+Options:
+  --systemd            Install and start the bundled systemd service.
+  --skip-star-prompt   Disable the optional post-install GitHub star prompt.
+  -h, --help           Show this help text.
+
+Environment:
+  CLAWHIP_SKIP_STAR_PROMPT=1
+      Disable the optional post-install GitHub star prompt.
+EOF
+}
+
+parse_args() {
+  for arg in "$@"; do
+    case "$arg" in
+      --systemd) SYSTEMD=1 ;;
+      --skip-star-prompt) SKIP_STAR_PROMPT=1 ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "unknown arg: $arg" >&2
+        usage >&2
+        exit 1
+        ;;
+    esac
+  done
+}
 
 log() {
   echo "[clawhip] $*"
 }
 
-star_repo() {
-  if command -v gh >/dev/null 2>&1; then
-    if gh auth status &>/dev/null; then
-      log "⭐ Starring ${GITHUB_REPO} — thanks for the support!"
-      gh repo star "${GITHUB_REPO}" 2>/dev/null || true
-    fi
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+star_prompt_disabled() {
+  is_truthy "${CLAWHIP_SKIP_STAR_PROMPT:-}" || is_truthy "${SKIP_STAR_PROMPT:-}"
+}
+
+is_interactive_install() {
+  [[ -t 0 && -t 1 ]]
+}
+
+can_use_github_cli_for_star() {
+  command -v gh >/dev/null 2>&1 && gh auth status &>/dev/null
+}
+
+prompt_to_star_repo() {
+  local response
+  printf '[clawhip] Would you like to star %s on GitHub with gh? [y/N]: ' "$GITHUB_REPO"
+  read -r response || return 0
+
+  case "$response" in
+    [yY]|[yY][eE][sS])
+      if gh repo star "${GITHUB_REPO}" 2>/dev/null; then
+        log "thanks for starring ${GITHUB_REPO}"
+      else
+        log "unable to star ${GITHUB_REPO} with gh; continuing without it"
+      fi
+      ;;
+    *)
+      log "skipping GitHub star step"
+      ;;
+  esac
+}
+
+maybe_prompt_to_star_repo() {
+  if star_prompt_disabled; then
+    log "skipping GitHub star prompt (--skip-star-prompt or CLAWHIP_SKIP_STAR_PROMPT)"
+    return 0
   fi
+
+  if ! is_interactive_install; then
+    return 0
+  fi
+
+  if ! can_use_github_cli_for_star; then
+    return 0
+  fi
+
+  log "optional: star ${GITHUB_REPO} on GitHub to support the project"
+  prompt_to_star_repo
 }
 
 install_prebuilt_binary() {
@@ -138,30 +213,38 @@ install_systemd_binary() {
   sudo install -m 755 "$binary_path" /usr/local/bin/clawhip
 }
 
-log "install flow: star -> prebuilt binary -> cargo fallback -> SKILL attach -> config scaffold -> daemon start -> live verification"
-log "repo root: $REPO_ROOT"
+main() {
+  parse_args "$@"
 
-star_repo
+  log "install flow: prebuilt binary -> cargo fallback -> SKILL attach -> config scaffold -> optional post-install GitHub star prompt -> verification"
+  log "repo root: $REPO_ROOT"
 
-if install_prebuilt_binary; then
-  log "prebuilt binary installed successfully"
-else
-  install_from_source
+  if install_prebuilt_binary; then
+    log "prebuilt binary installed successfully"
+  else
+    install_from_source
+  fi
+
+  mkdir -p "$HOME/.clawhip"
+  log "ensured config dir $HOME/.clawhip"
+  sync_plugins
+  log "next: read SKILL.md and attach the skill surface"
+  setup_quick_start
+
+  if [[ "$SYSTEMD" == "1" ]]; then
+    install_systemd_binary
+    sudo cp deploy/clawhip.service /etc/systemd/system/clawhip.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now clawhip
+    log "systemd unit installed and started"
+  fi
+
+  maybe_prompt_to_star_repo
+
+  log "recommended verification: scripts/live-verify-default-presets.sh <mode>"
+  log "install complete"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
 fi
-
-mkdir -p "$HOME/.clawhip"
-log "ensured config dir $HOME/.clawhip"
-sync_plugins
-log "next: read SKILL.md and attach the skill surface"
-setup_quick_start
-
-if [[ "$SYSTEMD" == "1" ]]; then
-  install_systemd_binary
-  sudo cp deploy/clawhip.service /etc/systemd/system/clawhip.service
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now clawhip
-  log "systemd unit installed and started"
-fi
-
-log "recommended verification: scripts/live-verify-default-presets.sh <mode>"
-log "install complete"
